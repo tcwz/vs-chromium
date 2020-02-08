@@ -2,16 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+using EnvDTE;
 using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.OLE.Interop;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.ComponentModelHost;
 using VsChromium.Commands;
 using VsChromium.Features.AutoUpdate;
 using VsChromium.Package.CommandHandler;
 using VsChromium.Wpf;
+using VsChromium.Package;
 
 namespace VsChromium.Features.ToolWindows.CodeSearch {
   /// <summary>
@@ -26,6 +29,7 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
   [Guid(GuidList.GuidCodeSearchToolWindowString)]
   public class CodeSearchToolWindow : ToolWindowPane, IOleCommandTarget {
     private VsWindowFrameNotifyHandler _frameNotify;
+    private EnvDTE.WindowEvents WindowEvents { get; set; }
 
     /// <summary>
     /// Standard constructor for the tool window.
@@ -50,13 +54,38 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
 
     public override void OnToolWindowCreated() {
       base.OnToolWindowCreated();
-      ExplorerControl.OnVsToolWindowCreated(this);
+      ExplorerControl.OnVsToolWindowCreated(this);     
+      
 
+      EnvDTE.DTE dte = (EnvDTE.DTE)GetService(typeof(EnvDTE.DTE));
+
+      EnvDTE80.Events2 events = (EnvDTE80.Events2)dte.Events;
+
+      IVsRunningDocumentTable rdt = VsPackage.GetGlobalService(typeof(SVsRunningDocumentTable)) as IVsRunningDocumentTable;
+      
+      this.WindowEvents = (EnvDTE.WindowEvents)events.get_WindowEvents(null);
+      this.WindowEvents.WindowActivated += (Window GotFocus, Window LostFocus) => {
+        if (GotFocus.ObjectKind.ToString().ToLower().Equals("{" + GuidList.GuidCodeSearchToolWindowString + "}"))
+        {
+          ExplorerControl.SearchCodeCombo.Focus();
+          var vsp = Package as VsPackage;
+          var ts = vsp.DTE.ActiveDocument.Selection as TextSelection;
+          if (ts != null && !ts.Text.Equals(""))
+            ExplorerControl.SearchCodeCombo.Text = ts.Text;
+        }
+      };
       // Advise IVsWindowFrameNotify so we know when we get hidden, etc.
       var frame = Frame as IVsWindowFrame2;
       if (frame != null) {
         _frameNotify = new VsWindowFrameNotifyHandler(frame);
         _frameNotify.Advise();
+        //_frameNotify.OnShowCallBack = () => {
+        //  ExplorerControl.SearchCodeCombo.Focus();
+        //  var vsp = Package as VsPackage;
+        //  var ts = vsp.DTE.ActiveDocument.Selection as TextSelection;
+        //  //if (ts != null)
+        //  //  ExplorerControl.SearchCodeCombo.Text = ts.Text;
+        //};
       }
 
       // Hookup command handlers

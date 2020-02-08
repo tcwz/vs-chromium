@@ -18,6 +18,8 @@ namespace VsChromium.Wpf {
       IsTextSearchEnabled = false;
       AddHandler(TextBoxBase.TextChangedEvent, (TextChangedEventHandler)TextBoxOnTextChanged);
       this.Loaded += OnLoaded;
+      this.Focusable = true;
+      this.IsEnabled = true;
     }
 
     /// <summary>

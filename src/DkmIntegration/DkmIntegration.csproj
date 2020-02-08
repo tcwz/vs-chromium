@@ -106,7 +106,7 @@
   <Target Name="AfterBuild">
   </Target>
   -->
-  <Target Name="GenerateVsdConfig" Inputs="@(VsdConfigXml)" Outputs="$(VsdConfigOutput)">
+  <Target Name="GenerateVsdConfig" Inputs="@(VsdConfigXml)" Outputs="$(VsdConfigOutput)" DependsOnTargets="PrintVariables">
     <Exec Command="&quot;$(VSSDKDir)VisualStudioIntegration\Tools\Bin\vsdconfigtool.exe&quot; @(VsdConfigXml, ' ') &quot;$(TargetPath)&quot; &quot;$(VsdConfigOutput)&quot;" />
   </Target>
   <Target Name="AfterBuild" DependsOnTargets="GenerateVsdConfig">

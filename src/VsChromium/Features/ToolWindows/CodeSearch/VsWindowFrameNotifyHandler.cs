@@ -1,4 +1,5 @@
-﻿using Microsoft.VisualStudio;
+﻿using System;     
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell.Interop;
 using VsChromium.Core.Logging;
 
@@ -7,6 +8,7 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
     private readonly IVsWindowFrame2 _frame;
     private uint _notifyCookie;
     private bool _isVisible;
+    private Action _action;
 
     public VsWindowFrameNotifyHandler(IVsWindowFrame2 frame) {
       _frame = frame;
@@ -23,7 +25,12 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
         Logger.LogWarn("IVsWindowFrame2.Advise() failed: hr={0}", hr);
       }
     }
-
+        
+    public Action OnShowCallBack
+    {   get { if (_action == null) return () => { }; else return _action; }
+        set { _action = value; }
+    }
+    
     int IVsWindowFrameNotify.OnShow(int fShow) {
       var show = (__FRAMESHOW)fShow;
       switch (show) {
@@ -32,6 +39,7 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
           break;
         case __FRAMESHOW.FRAMESHOW_WinShown:
           _isVisible = true;
+          _action();
           break;
         case __FRAMESHOW.FRAMESHOW_WinClosed:
           _isVisible = false;

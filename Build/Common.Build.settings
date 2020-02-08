@@ -38,6 +38,10 @@
     <VSSDKDir>$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\Software\Microsoft\VisualStudio\VSIP\$(VisualStudioVersion)', 'InstallDir', null, RegistryView.Registry32))\</VSSDKDir>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <VSSDKDir Condition="'$(VSSDKDir)' == '\'">D:\Program Files\vs2017\VSSDK\</VSSDKDir>
+  </PropertyGroup>
+
   <Import Project="$(BuildSettingsPath)Common.Build.CSharp.settings" Condition="'$(MSBuildProjectExtension)' == '.csproj'" />
 
   <Target Name="PrintVariables">

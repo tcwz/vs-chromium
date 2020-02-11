@@ -7,9 +7,13 @@ using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.OLE.Interop;
+using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Editor;
+using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.ComponentModelHost;
+using Microsoft.VisualStudio.TextManager.Interop;
 using VsChromium.Commands;
 using VsChromium.Features.AutoUpdate;
 using VsChromium.Package.CommandHandler;
@@ -29,6 +33,11 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
   [Guid(GuidList.GuidCodeSearchToolWindowString)]
   public class CodeSearchToolWindow : ToolWindowPane, IOleCommandTarget {
     private VsWindowFrameNotifyHandler _frameNotify;
+    private IVsTextManager _txtMgr;
+    private IComponentModel _componentModel;
+    private IVsEditorAdaptersFactoryService _editorAdaptersFactoryService;
+    private IEditorPrimitivesFactoryService _editorPrimitivesFactoryService;
+
     private EnvDTE.WindowEvents WindowEvents { get; set; }
 
     /// <summary>
@@ -52,26 +61,131 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
       ExplorerControl = new CodeSearchControl();
     }
 
+    private string GetSelectedOrWord()
+    {
+      string selection = string.Empty;
+      IVsTextView vTextView = null;
+      int mustHaveFocus = 1;
+      _txtMgr.GetActiveView(mustHaveFocus, null, out vTextView);
+      //IObjectWithSite objectWithSite = vTextView as IObjectWithSite;
+      //if (objectWithSite == null)
+      //  return;
+      if (vTextView == null)
+        return selection;
+      vTextView.GetSelectedText(out selection);
+      if (!selection.Equals(""))
+        return selection;
+      IWpfTextView textView = _editorAdaptersFactoryService.GetWpfTextView(vTextView);
+      if (textView == null)
+        return selection;
+      IViewPrimitives viewPrimitives = _editorPrimitivesFactoryService.GetViewPrimitives(textView);
+      if (viewPrimitives == null)
+        return selection;
+      var position = textView.Caret.Position.BufferPosition;
+      position = position.TranslateTo(textView.TextSnapshot, PointTrackingMode.Positive);
+      var textPoint = viewPrimitives.View.GetTextPoint(position);
+      var word = textPoint.GetCurrentWord();
+      var wordstring = word.GetText();
+      return wordstring;
+      //IVsTextLines ppBuffer;
+      //System.Guid pguidLangService;
+      //vTextView.GetBuffer(out ppBuffer);
+      //if (ppBuffer == null)
+      //  return;
+      //ppBuffer.GetLanguageServiceID(out pguidLangService);
+      //if (pguidLangService == null)
+      //  return;
+      //System.Guid riid = typeof(Microsoft.VisualStudio.OLE.Interop.IServiceProvider).GUID;
+      //System.IntPtr ppvSite;
+      //objectWithSite.GetSite(ref riid, out ppvSite);
+      //if (ppvSite == System.IntPtr.Zero)
+      //  return;
+
+      //Microsoft.VisualStudio.OLE.Interop.IServiceProvider oleServiceProvider = null;
+      //try
+      //{
+      //  oleServiceProvider = Marshal.GetObjectForIUnknown(ppvSite) as Microsoft.VisualStudio.OLE.Interop.IServiceProvider;
+      //}
+      //finally
+      //{
+      //  Marshal.Release(ppvSite);
+      //}
+
+      //if (oleServiceProvider == null)
+      //  return;
+      //System.IntPtr ppvObject;
+      //IVsLanguageDebugInfo languageBlock = null;
+      //if (Microsoft.VisualStudio.ErrorHandler.Failed(oleServiceProvider.QueryService(ref pguidLangService, typeof(IVsLanguageDebugInfo).GUID, out ppvObject)) || ppvObject == System.IntPtr.Zero)
+      //  return;
+
+      //try
+      //{
+      //  languageBlock = Marshal.GetObjectForIUnknown(ppvObject) as IVsLanguageDebugInfo;
+      //}
+      //finally
+      //{
+      //  Marshal.Release(ppvObject);
+      //}
+      //if (languageBlock == null)
+      //  return;                                   
+      //int iCurrentLine = 0;
+      //int iCurrentChar = 0;
+      //vTextView.GetCaretPos(out iCurrentLine, out iCurrentChar);
+      //TextSpan[] ptsBlockSpan = new TextSpan[1];
+      //string pbstrDescription = string.Empty;
+      //int pfBlockAvailable = 0;
+
+      //languageBlock.GetNameOfLocation(ppBuffer, iCurrentLine, iCurrentChar,out pbstrDescription,out pfBlockAvailable);
+
+      //System.Guid guidService = typeof(SVsWindowFrame).GUID;
+      //riid = typeof(IVsWindowFrame).GUID;
+      //System.IntPtr ppvObject;
+      //if (Microsoft.VisualStudio.ErrorHandler.Failed(oleServiceProvider.QueryService(ref guidService, ref riid, out ppvObject)) || ppvObject == System.IntPtr.Zero)
+      //  return;
+
+      //IVsWindowFrame frame = null;
+      //try
+      //{
+      //  frame = Marshal.GetObjectForIUnknown(ppvObject) as IVsWindowFrame;
+      //}
+      //finally
+      //{
+      //  Marshal.Release(ppvObject);
+      //}
+
+      //riid = typeof(IVsCodeWindow).GUID;
+      //if (Microsoft.VisualStudio.ErrorHandler.Failed(frame.QueryViewInterface(ref riid, out ppvObject)) || ppvObject == System.IntPtr.Zero)
+      //  return;
+
+      //IVsCodeWindow codeWindow = null;
+      //try
+      //{
+      //  codeWindow = Marshal.GetObjectForIUnknown(ppvObject) as IVsCodeWindow;
+
+      //}
+      //finally
+      //{
+      //  Marshal.Release(ppvObject);
+      //}
+    }
+
+
     public override void OnToolWindowCreated() {
       base.OnToolWindowCreated();
-      ExplorerControl.OnVsToolWindowCreated(this);     
-      
+      ExplorerControl.OnVsToolWindowCreated(this);
+      _txtMgr = (IVsTextManager)GetService(typeof(SVsTextManager));
+      _componentModel = (IComponentModel)GetService(typeof(SComponentModel));
+      _editorAdaptersFactoryService = (IVsEditorAdaptersFactoryService)_componentModel.GetService<IVsEditorAdaptersFactoryService>();
+      _editorPrimitivesFactoryService = (IEditorPrimitivesFactoryService)_componentModel.GetService<IEditorPrimitivesFactoryService>();
 
       EnvDTE.DTE dte = (EnvDTE.DTE)GetService(typeof(EnvDTE.DTE));
-
       EnvDTE80.Events2 events = (EnvDTE80.Events2)dte.Events;
-
-      IVsRunningDocumentTable rdt = VsPackage.GetGlobalService(typeof(SVsRunningDocumentTable)) as IVsRunningDocumentTable;
-      
       this.WindowEvents = (EnvDTE.WindowEvents)events.get_WindowEvents(null);
       this.WindowEvents.WindowActivated += (Window GotFocus, Window LostFocus) => {
         if (GotFocus.ObjectKind.ToString().ToLower().Equals("{" + GuidList.GuidCodeSearchToolWindowString + "}"))
         {
           ExplorerControl.SearchCodeCombo.Focus();
-          var vsp = Package as VsPackage;
-          var ts = vsp.DTE.ActiveDocument.Selection as TextSelection;
-          if (ts != null && !ts.Text.Equals(""))
-            ExplorerControl.SearchCodeCombo.Text = ts.Text;
+          ExplorerControl.SearchCodeCombo.Text = GetSelectedOrWord();
         }
       };
       // Advise IVsWindowFrameNotify so we know when we get hidden, etc.

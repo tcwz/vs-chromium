@@ -6,6 +6,7 @@ using EnvDTE;
 using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Runtime.InteropServices;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.OLE.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Editor;
@@ -36,7 +37,7 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
     private IVsTextManager _txtMgr;
     private IComponentModel _componentModel;
     private IVsEditorAdaptersFactoryService _editorAdaptersFactoryService;
-    private IEditorPrimitivesFactoryService _editorPrimitivesFactoryService;
+    //private IEditorPrimitivesFactoryService _editorPrimitivesFactoryService;
 
     private EnvDTE.WindowEvents WindowEvents { get; set; }
 
@@ -75,17 +76,25 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
       vTextView.GetSelectedText(out selection);
       if (!selection.Equals(""))
         return selection;
-      IWpfTextView textView = _editorAdaptersFactoryService.GetWpfTextView(vTextView);
-      if (textView == null)
+      var textView = _editorAdaptersFactoryService.GetWpfTextView(vTextView);
+      var viewadatper = _editorAdaptersFactoryService.GetViewAdapter(textView);
+      if (textView == null || viewadatper == null)
         return selection;
-      IViewPrimitives viewPrimitives = _editorPrimitivesFactoryService.GetViewPrimitives(textView);
-      if (viewPrimitives == null)
-        return selection;
+     // IViewPrimitives viewPrimitives = _editorPrimitivesFactoryService.GetViewPrimitives(textView);
+     // if (viewPrimitives == null)
+    //    return selection;
       var position = textView.Caret.Position.BufferPosition;
       position = position.TranslateTo(textView.TextSnapshot, PointTrackingMode.Positive);
-      var textPoint = viewPrimitives.View.GetTextPoint(position);
-      var word = textPoint.GetCurrentWord();
-      var wordstring = word.GetText();
+     // var textPoint = viewPrimitives.View.GetTextPoint(position);
+    //  var word = textPoint.GetCurrentWord();
+    //  var wordstring = word.GetText();
+      TextSpan[] spans = new TextSpan[1];
+      var containingline = position.GetContainingLine();
+      if (ErrorHandler.Failed(viewadatper.GetWordExtent(containingline.LineNumber, position - containingline.Start, (uint)WORDEXTFLAGS.WORDEXT_CURRENT, spans)))
+        return selection;
+      var wordstring = string.Empty;
+      var span = spans[0];
+      vTextView.GetTextStream(span.iStartLine, span.iStartIndex, span.iEndLine, span.iEndIndex, out wordstring);
       return wordstring;
       //IVsTextLines ppBuffer;
       //System.Guid pguidLangService;
@@ -176,7 +185,7 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
       _txtMgr = (IVsTextManager)GetService(typeof(SVsTextManager));
       _componentModel = (IComponentModel)GetService(typeof(SComponentModel));
       _editorAdaptersFactoryService = (IVsEditorAdaptersFactoryService)_componentModel.GetService<IVsEditorAdaptersFactoryService>();
-      _editorPrimitivesFactoryService = (IEditorPrimitivesFactoryService)_componentModel.GetService<IEditorPrimitivesFactoryService>();
+      //_editorPrimitivesFactoryService = (IEditorPrimitivesFactoryService)_componentModel.GetService<IEditorPrimitivesFactoryService>();
 
       EnvDTE.DTE dte = (EnvDTE.DTE)GetService(typeof(EnvDTE.DTE));
       EnvDTE80.Events2 events = (EnvDTE80.Events2)dte.Events;
@@ -184,8 +193,11 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
       this.WindowEvents.WindowActivated += (Window GotFocus, Window LostFocus) => {
         if (GotFocus.ObjectKind.ToString().ToLower().Equals("{" + GuidList.GuidCodeSearchToolWindowString + "}"))
         {
-          ExplorerControl.SearchCodeCombo.Focus();
+          var word = GetSelectedOrWord();
+          if (word.Equals(""))
+            return;
           ExplorerControl.SearchCodeCombo.Text = GetSelectedOrWord();
+          //ExplorerControl.SearchCodeCombo.Focus();
         }
       };
       // Advise IVsWindowFrameNotify so we know when we get hidden, etc.

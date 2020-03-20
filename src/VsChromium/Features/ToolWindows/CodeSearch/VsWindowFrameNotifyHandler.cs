@@ -39,7 +39,7 @@ namespace VsChromium.Features.ToolWindows.CodeSearch {
           break;
         case __FRAMESHOW.FRAMESHOW_WinShown:
           _isVisible = true;
-          _action();
+          OnShowCallBack();
           break;
         case __FRAMESHOW.FRAMESHOW_WinClosed:
           _isVisible = false;
